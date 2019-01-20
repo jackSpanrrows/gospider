@@ -1,11 +1,9 @@
 package spider
 
 import (
-	"bytes"
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly"
@@ -16,6 +14,7 @@ type Request struct {
 	Headers *http.Header
 	Method  string
 	Body    io.Reader
+	ID      uint32
 
 	req    *colly.Request
 	reqCtx *colly.Context
@@ -29,92 +28,11 @@ func newRequest(req *colly.Request, ctx *Context) *Request {
 		Headers: req.Headers,
 		Method:  req.Method,
 		Body:    req.Body,
+		ID:      req.ID,
 		req:     req,
 		reqCtx:  req.Ctx,
 		ctx:     ctx,
 	}
-}
-
-func (r *Request) PutReqContextValue(key string, value interface{}) {
-	r.reqCtx.Put(key, value)
-}
-
-func (r *Request) GetReqContextValue(key string) string {
-	return r.reqCtx.Get(key)
-}
-
-func (r *Request) GetAnyReqContextValue(key string) interface{} {
-	return r.reqCtx.GetAny(key)
-}
-
-func (r *Request) SetResponseCharacterEncoding(encoding string) {
-	r.req.ResponseCharacterEncoding = encoding
-}
-
-func (r *Request) Abort() {
-	r.req.Abort()
-}
-
-func (r *Request) reqContextClone() *colly.Context {
-	newCtx := colly.NewContext()
-	r.reqCtx.ForEach(func(k string, v interface{}) interface{} {
-		newCtx.Put(k, v)
-		return nil
-	})
-
-	return newCtx
-}
-
-func (r *Request) AbsoluteURL(u string) string {
-	return r.req.AbsoluteURL(u)
-}
-
-func (r *Request) Visit(URL string) error {
-	return r.req.Visit(URL)
-}
-
-func (r *Request) VisitForNext(URL string) error {
-	return r.ctx.VisitForNext(r.AbsoluteURL(URL))
-}
-
-func (r *Request) VisitForNextWithContext(URL string) error {
-	return r.ctx.nextC.Request("GET", r.req.AbsoluteURL(URL), nil, r.reqContextClone(), nil)
-}
-
-func (r *Request) Post(URL string, requestData map[string]string) error {
-	return r.req.Post(URL, requestData)
-}
-
-func (r *Request) PostForNext(URL string, requestData map[string]string) error {
-	return r.ctx.PostForNext(r.AbsoluteURL(URL), requestData)
-}
-
-func (r *Request) PostForNextWithContext(URL string, requestData map[string]string) error {
-	return r.ctx.nextC.Request("POST", r.req.AbsoluteURL(URL), createFormReader(requestData), r.reqContextClone(), nil)
-}
-
-func (r *Request) PostRaw(URL string, requestData []byte) error {
-	return r.req.PostRaw(URL, requestData)
-}
-
-func (r *Request) PostRawForNext(URL string, requestData []byte) error {
-	return r.ctx.PostRawForNext(r.AbsoluteURL(URL), requestData)
-}
-
-func (r *Request) PostRawForNextWithContext(URL string, requestData []byte) error {
-	return r.ctx.nextC.Request("POST", r.req.AbsoluteURL(URL), bytes.NewReader(requestData), r.reqContextClone(), nil)
-}
-
-func (r *Request) PostMultipart(URL string, requestData map[string][]byte) error {
-	return r.req.PostMultipart(URL, requestData)
-}
-
-func (r *Request) PostMultipartForNext(URL string, requestData map[string][]byte) error {
-	return r.ctx.PostMultipartForNext(r.AbsoluteURL(URL), requestData)
-}
-
-func (r *Request) Retry() error {
-	return r.req.Retry()
 }
 
 type Response struct {
@@ -205,6 +123,7 @@ func newXMLElement(el *colly.XMLElement, ctx *Context) *XMLElement {
 		Request:  newRequest(el.Request, ctx),
 		Response: newResponse(el.Response, ctx),
 		DOM:      el.DOM,
+		el:       el,
 	}
 }
 
@@ -222,12 +141,4 @@ func (x *XMLElement) ChildAttr(xpathQuery, attrName string) string {
 
 func (x *XMLElement) ChildAttrs(xpathQuery, attrName string) []string {
 	return x.el.ChildAttrs(xpathQuery, attrName)
-}
-
-func createFormReader(data map[string]string) io.Reader {
-	form := url.Values{}
-	for k, v := range data {
-		form.Add(k, v)
-	}
-	return strings.NewReader(form.Encode())
 }

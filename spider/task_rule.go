@@ -11,16 +11,27 @@ func Register(rule *TaskRule) {
 	rules[rule.Name] = rule
 }
 
+type MultipleNamespacesConf struct {
+	OutputFields      []string
+	OutputConstraints map[string]*OutputConstraint
+	OutputTableOpts   string
+}
+
 type TaskRule struct {
-	Name                   string
-	Description            string
-	Namespace              string
-	OutputFields           []string
-	DisableCookies         bool
-	AllowURLRevisit        bool
-	IgnoreRobotsTxt        bool
-	ParseHTTPErrorResponse bool
-	Rule                   *Rule
+	Name                       string
+	Description                string
+	OutputToMultipleNamespaces bool
+	MultipleNamespacesConf     map[string]*MultipleNamespacesConf
+	Namespace                  string
+	OutputFields               []string
+	OutputConstraints          map[string]*OutputConstraint
+	OutputTableOpts            string
+	DisableCookies             bool
+	AllowURLRevisit            bool
+	IgnoreRobotsTxt            bool
+	InsecureSkipVerify         bool
+	ParseHTTPErrorResponse     bool
+	Rule                       *Rule
 }
 
 func GetTaskRule(ruleName string) (*TaskRule, error) {
@@ -46,11 +57,11 @@ type Rule struct {
 
 type Node struct {
 	OnRequest  func(ctx *Context, req *Request)
-	OnError    func(ctx *Context, res *Response, err error)
-	OnResponse func(ctx *Context, res *Response)
-	OnHTML     map[string]func(ctx *Context, el *HTMLElement)
-	OnXML      map[string]func(ctx *Context, el *XMLElement)
-	OnScraped  func(ctx *Context, res *Response)
+	OnError    func(ctx *Context, res *Response, err error) error
+	OnResponse func(ctx *Context, res *Response) error
+	OnHTML     map[string]func(ctx *Context, el *HTMLElement) error
+	OnXML      map[string]func(ctx *Context, el *XMLElement) error
+	OnScraped  func(ctx *Context, res *Response) error
 }
 
 func checkRule(rule *TaskRule) error {

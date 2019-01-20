@@ -18,7 +18,7 @@ Alpha, 核心功能可用(任务创建、任务列表), 但功能还不完善。
 * 自动cookie和session处理
 * 支持各种导出类型(mysql,csv等)
 * 支持定时任务(兼容crontab格式)
-* 支持任务级别的可配置代理IP池(comming soon)
+* 支持任务级别的可配置代理IP池
 * Robots.txt 支持
 
 ## 依赖
@@ -58,20 +58,20 @@ var rule = &spider.TaskRule{
 				OnRequest: func(ctx *spider.Context, req *spider.Request) { // 实际请求发出之前执行
 					logrus.Println("Visting", req.URL.String())
 				},
-				OnHTML: map[string]func(*spider.Context, *spider.HTMLElement){  // 返回结果是html时执行, map的key为页面选择器(和jquery的选择器语法相同)
-					`.menu-list a`: func(ctx *spider.Context, el *spider.HTMLElement) { // 获取所有分类
+				OnHTML: map[string]func(*spider.Context, *spider.HTMLElement) error {  // 返回结果是html时执行, map的key为页面选择器(和jquery的选择器语法相同)
+					`.menu-list a`: func(ctx *spider.Context, el *spider.HTMLElement) error { // 获取所有分类
 						category := el.Text
 						if category == "百家号" || category == "个性推荐" {
-							return
+							return nil
 						}
 						if category == "首页" {
 							category = "热点要闻"
 						}
 
-						el.Request.PutReqContextValue("category", category)     // 在请求的context中存储key,value值(通常用于需要传递参数到下一个处理流程时使用)
+						ctx.PutReqContextValue("category", category)     // 在请求的context中存储key,value值(通常用于需要传递参数到下一个处理流程时使用)
 
 						link := el.Attr("href")
-						el.Request.VisitForNextWithContext(link)    // 定义下一个处理流程的入口, 并且保留context上下文
+						return ctx.VisitForNextWithContext(link)    // 定义下一个处理流程的入口, 并且保留context上下文
 					},
 				},
 			},
@@ -79,28 +79,28 @@ var rule = &spider.TaskRule{
 				OnRequest: func(ctx *spider.Context, req *spider.Request) {
 					logrus.Println("Visting", req.URL.String())
 				},
-				OnHTML: map[string]func(*spider.Context, *spider.HTMLElement){
-					`#pane-news a`: func(ctx *spider.Context, el *spider.HTMLElement) {
+				OnHTML: map[string]func(*spider.Context, *spider.HTMLElement) error {
+					`#pane-news a`: func(ctx *spider.Context, el *spider.HTMLElement) error {
 						title := el.Text
 						link := el.Attr("href")
 						if title == "" || link == "javascript:void(0);" {
-							return
+							return nil
 						}
-						category := el.Request.GetReqContextValue("category")   // 取出上一步context中存储的值
-						ctx.Output(map[int]interface{}{     // 导出字段, key从0递增, 很上面的OutputFields内容需要一一对应
+						category := ctx.GetReqContextValue("category")   // 取出上一步context中存储的值
+						return ctx.Output(map[int]interface{}{     // 导出字段, key从0递增, 很上面的OutputFields内容需要一一对应
 							0: category,
 							1: title,
 							2: link,
 						})
 					},
-					`#col_focus a`: func(ctx *spider.Context, el *spider.HTMLElement) {
+					`#col_focus a`: func(ctx *spider.Context, el *spider.HTMLElement) error {
 						title := el.Text
 						link := el.Attr("href")
 						if title == "" || link == "javascript:void(0);" {
-							return
+							return nil
 						}
-						category := el.Request.GetReqContextValue("category")      // 取出上一步context中存储的值
-						ctx.Output(map[int]interface{}{    // 导出字段, key从0递增, 很上面的OutputFields内容需要一一对应
+						category := ctx.GetReqContextValue("category")      // 取出上一步context中存储的值
+						return ctx.Output(map[int]interface{}{    // 导出字段, key从0递增, 很上面的OutputFields内容需要一一对应
 							0: category,
 							1: title,
 							2: link,
@@ -117,9 +117,10 @@ var rule = &spider.TaskRule{
 
 ![image](images/gospider_task_list.png)
 ![image](images/gospider_task_create.png)
+![image](images/gospider_sysdb.png)
 
 
 ## 感谢
 * [colly](https://github.com/gocolly/colly)
 * [gin](https://github.com/gin-gonic/gin)
-
+* [gorm](https://github.com/jinzhu/gorm)
