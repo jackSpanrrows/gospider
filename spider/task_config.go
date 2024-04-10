@@ -1,26 +1,24 @@
 package spider
 
 import (
+	"crypto/tls"
 	"database/sql"
+	"net/http"
 	"regexp"
 	"time"
 
 	"github.com/didi/gendry/manager"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gocolly/colly"
+	"github.com/gocolly/colly/proxy"
 	"github.com/pkg/errors"
 )
 
-const (
-	OutputTypeMySQL = "mysql"
-	OutputTypeCSV   = "csv"
-)
-
-//TODO: 定时任务配置
 type TaskConfig struct {
 	CronSpec     string
 	Option       Option
 	Limit        Limit
+	ProxyURLs    []string
 	OutputConfig OutputConfig
 }
 
@@ -32,8 +30,10 @@ type Option struct {
 	AllowURLRevisit        bool
 	MaxBodySize            int
 	IgnoreRobotsTxt        bool
+	InsecureSkipVerify     bool
 	ParseHTTPErrorResponse bool
 	DisableCookies         bool
+	RequestTimeout         time.Duration
 }
 
 type Limit struct {
@@ -69,7 +69,7 @@ type MySQLConf struct {
 	DBName   string
 }
 
-func newCollector(config TaskConfig) *colly.Collector {
+func newCollector(config TaskConfig) (*colly.Collector, error) {
 	opts := make([]func(*colly.Collector), 0)
 
 	opts = append(opts, colly.Async(true))
@@ -103,6 +103,14 @@ func newCollector(config TaskConfig) *colly.Collector {
 		c.DisableCookies()
 	}
 
+	if len(config.ProxyURLs) > 0 {
+		rp, err := proxy.RoundRobinProxySwitcher(config.ProxyURLs...)
+		if err != nil {
+			return nil, errors.Wrapf(err, "set proxy switcher err")
+		}
+		c.SetProxyFunc(rp)
+	}
+
 	if config.Limit.Enable {
 		var limit colly.LimitRule
 		if config.Limit.Delay > 0 {
@@ -126,7 +134,18 @@ func newCollector(config TaskConfig) *colly.Collector {
 		c.Limit(&limit)
 	}
 
-	return c
+	if config.Option.RequestTimeout > 0 {
+		c.SetRequestTimeout(config.Option.RequestTimeout)
+	}
+
+	if config.Option.InsecureSkipVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		c.WithTransport(tr)
+	}
+
+	return c, nil
 }
 
 func newDB(conf MySQLConf) (*sql.DB, error) {
